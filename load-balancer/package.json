@@ -1,0 +1,26 @@
+{
+    "name": "nodejs-load-balancer",
+    "version": "1.0.0",
+    "description": "A round-robin load balancer built from scratch to understand how Nginx works",
+    "main": "load-balancer.js",
+    "scripts": {
+        "worker1": "node worker.js 3001",
+        "worker2": "node worker.js 3002",
+        "worker3": "node worker.js 3003",
+        "load-balancer": "node load-balancer.js",
+        "start-all": "bash start-all.sh"
+    },
+    "keywords": [
+        "load-balancer",
+        "reverse-proxy",
+        "round-robin",
+        "nginx",
+        "system-design"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "express": "^4.18.2",
+        "http-proxy-middleware": "^2.0.6"
+    }
+}
