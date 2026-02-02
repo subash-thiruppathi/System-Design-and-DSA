@@ -16,6 +16,13 @@ cleanup() {
 # Set trap to cleanup on script exit
 trap cleanup SIGINT SIGTERM EXIT
 
+# Start Redis Mock Server
+echo "Starting Redis Mock Server..."
+node redis_mock.js &
+REDIS_PID=$!
+echo "  ✓ Redis Mock started on port 6379 (PID: $REDIS_PID)"
+echo ""
+
 # Start worker servers in background
 echo "Starting Worker Servers..."
 node worker.js 3001 &

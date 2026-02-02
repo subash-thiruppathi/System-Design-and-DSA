@@ -1,12 +1,13 @@
 const express = require('express');
 
+const axios = require('axios');
+
 // Get port from command line argument
 const PORT = process.argv[2] || 3001;
 const app = express();
 
-// --- 1. THE CACHE LAYER (In-Memory RAM) ---
-// This acts like Redis. It stores data so we don't have to "compute" it again.
-const requestCache = new Map();
+// Redis Configuration
+const REDIS_URL = 'http://localhost:6379';
 
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
@@ -14,22 +15,27 @@ app.use((req, res, next) => {
     next();
 });
 
-app.get('*', (req, res) => {
-    const cacheKey = req.originalUrl; // Use the URL as the unique key
+app.get('*', async (req, res) => {
+    const cacheKey = encodeURIComponent(req.originalUrl); // Encode key for URL safety
 
-    // --- 2. CACHE CHECK (The "Fast Path") ---
-    if (requestCache.has(cacheKey)) {
-        console.log(`   ⚡ CACHE HIT! Serving immediately.`);
-        const cachedResponse = requestCache.get(cacheKey);
-        // Add a flag to prove it came from cache
-        cachedResponse.source = 'RAM Cache (Fast)';
+    // --- 1. CACHE CHECK (Ask Redis) ---
+    try {
+        const redisResponse = await axios.get(`${REDIS_URL}/get/${cacheKey}`);
+        console.log(`   ⚡ REDIS HIT! Serving from Cache.`);
+        const cachedResponse = redisResponse.data.value;
+        cachedResponse.source = 'Redis Cache (Fast)';
         return res.json(cachedResponse);
+    } catch (err) {
+        // 404 means key not found (Cache Miss)
+        if (err.response && err.response.status === 404) {
+            console.log(`   🐢 REDIS MISS. Fetching from "Database" (3s delay)...`);
+        } else {
+            console.error(`   ⚠️ Redis Error: ${err.message}`);
+        }
     }
 
-    // --- 3. DATABASE SIMULATION (The "Slow Path") ---
-    console.log(`   🐢 CACHE MISS. Fetching from "Database" (3s delay)...`);
-
-    setTimeout(() => {
+    // --- 2. DATABASE SIMULATION (The "Slow Path") ---
+    setTimeout(async () => {
         const responseData = {
             message: `Hello from Server ${PORT}`,
             port: parseInt(PORT),
@@ -37,8 +43,16 @@ app.get('*', (req, res) => {
             source: 'Database (Slow)'
         };
 
-        // SAVE to Cache before sending
-        requestCache.set(cacheKey, responseData);
+        // --- 3. SAVE TO REDIS ---
+        try {
+            await axios.post(`${REDIS_URL}/set`, {
+                key: cacheKey,
+                value: responseData
+            });
+            console.log(`   💾 Saved to Redis.`);
+        } catch (error) {
+            console.error('   ❌ Failed to save to Redis:', error.message);
+        }
 
         res.json(responseData);
     }, 3000); // 3000ms = 3 Seconds Latency
